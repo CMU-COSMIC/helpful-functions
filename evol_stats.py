@@ -115,9 +115,9 @@ def evol_stats(df, kick_df):
         - Number of binaries that evolve through SMT only before first SN
         - Number of binaries that evolve through no mass transfer before first SN
         - The primary star type at start of the first RLO
-        - Eccentricity before/after the first SN
-        - Orbital Period before/after the first SN
-        - Mass lost due to the first SN
+        - Average eccentricity before/after the first SN
+        - Average orbital period before/after the first SN
+        - Average mass lost due to the first SN
         - Average natal kick
         - Average mass of the primary and secondary after the first SN
         - Semi-latus rectum after the first SN
