@@ -126,7 +126,7 @@ def evol_stats(df, kick_df):
     ----------
 
     df : pandas.DataFrame
-        A dataframe (e.g., bpp from COSMIC or BackPop) of binaries
+        A dataframe (e.g., a bpp from COSMIC or BackPop) of binaries
     
     kick_info : 
         Returned kick_info dataframe from COSMIC or BackPop
