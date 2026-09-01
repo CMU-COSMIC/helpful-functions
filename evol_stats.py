@@ -105,7 +105,10 @@ def evol_steps(df):
 # evolutionary stats
 ###################################################################################################
 
-def evol_stats(df, kick_df):
+def evol_stats(df, kick_df, ci, , InitC_Mass=True, 
+               mass_transfer=True, kstar_at_rlo1=True, 
+               ecc=True, porb=True, SN_mass_loss=True, 
+               Avg_Kick=True, Post_SN_Mass=True, SLR=True):
     '''
     Prints the evolutionary statistics of a binary population dataframe and a kick dataframe:
         - Average initial mass of the primary and secondary
@@ -128,120 +131,146 @@ def evol_stats(df, kick_df):
     df : pandas.DataFrame
         A dataframe (e.g., a bpp from COSMIC or BackPop) of binaries
     
-    kick_info : 
+    kick_info : pandas.DataFrame
         Returned kick_info dataframe from COSMIC or BackPop
+
+    ci : float
+        Confidence interval
 
     '''
     
-    CE1, post_CE1, RLO1, post_RLO1, RLO2, SN1, post_SN1 = evol_steps(df)
+    evol_type_7, CE1, post_CE1, evol_type_3, RLO1, post_RLO1, SN1, post_SN1 = evol_steps(BPP)
     
     ########################
     # Initial masses
     ########################
+    
+    if InitC_Mass:
+        for initC_mass in ['mass_1', 'mass_2']:
+            
+            data = BPP.loc[(BPP.tphys == 0)][initC_mass].values
+            mean = data.mean()
 
-    avg_init_m1 = df.loc[(df.tphys == 0)]['mass_1'].values.mean()
-    avg_init_m2 = df.loc[(df.tphys == 0)]['mass_2'].values.mean()
+            resamp = stats.bootstrap((data,), np.mean, confidence_level=ci, method='percentile')
+            ci_low, ci_high = resamp.confidence_interval
 
-    print(f'Initial m1 mass: {avg_init_m1:.3f}')
-    print(f'Initial m2 mass: {avg_init_m2:.3f}')
-    print('')
+            print(f'Initial {initC_mass} (90% confidence int): {mean:.3f} + {ci_high - mean:.3f} / - {mean - ci_low:.3f}')
+
+            lo, hi = np.percentile(data, [5, 95])
+
+            print(f'Initial {initC_mass} (5 and 95 quantiles): {mean:.3f} + {hi - mean:.3f} / - {mean - lo:.3f}')
+            print('')       
 
     ########################
     # Mass transfer
     ########################
 
-    t_rlo1 = RLO1.tphys.values
-    t_end_rlo1 = post_RLO1.tphys.values
-    
-    RLO1_time = (t_end_rlo1-t_rlo1).mean()
-    
-    t_CE1 = CE1.tphys.values
-    
-    print(f'Avg time in RLO1: {RLO1_time:.3f} Myr')
-    print('')
-    
-    t_rlo_CE = RLO1.loc[(RLO1.bin_num.isin(CE1.bin_num))].tphys.values
+    if mass_transfer:
+        t_rlo1 = RLO1.tphys.values
+        t_end_rlo1 = post_RLO1.tphys.values
 
-    t_transition = t_CE1-t_rlo_CE
-    t_transition_frac = len(t_transition[t_transition > 0])/len(RLO1)
-    SMT_CE = len(t_transition[t_transition > 0])
+        RLO1_time = (t_end_rlo1-t_rlo1).mean()
 
-    RLO1_frac = len(RLO1.bin_num.unique())/len(df.bin_num.unique())
-    RLO1_only = len(RLO1.bin_num.unique())-len(t_transition[t_transition>0])
-    
-    CE1_frac = len(CE1.bin_num.unique())/len(df.bin_num.unique())
-    CE1_only = len(CE1.bin_num.unique())-len(t_transition[t_transition>0])
-    
-    No_MT_frac = len(RLO2.bin_num.unique())/len(df.bin_num.unique())
-    No_MT = len(RLO2.bin_num.unique())
-    
-    print(f'No. of SMT -> CE: {SMT_CE}, {t_transition_frac*100:.3f}%')
-    print(f'No. of   only CE: {CE1_only}, {(CE1_frac-t_transition_frac)*100:.3f}%')
-    print(f'No. of  only SMT: {RLO1_only}, {(RLO1_frac-t_transition_frac)*100:.3f}%')
-    print(f'No. of     no MT: {No_MT}, {No_MT_frac*100:.3f}%')
-    print('')
+        t_CE1 = CE1.tphys.values
+
+        print(f'Avg time in RLO1: {RLO1_time:.3f} Myr')
+        print('')
+
+        t_rlo_CE = RLO1.loc[(RLO1.bin_num.isin(CE1.bin_num))].tphys.values
+
+        t_transition = t_CE1-t_rlo_CE
+        t_transition_frac = len(t_transition[t_transition > 0])/len(RLO1)
+        SMT_CE = len(t_transition[t_transition > 0])
+
+        RLO1_frac = len(RLO1.bin_num.unique())/len(BPP.bin_num.unique())
+        RLO1_only = len(RLO1.bin_num.unique())-len(t_transition[t_transition>0])
+
+        CE1_frac = len(CE1.bin_num.unique())/len(BPP.bin_num.unique())
+        CE1_only = len(CE1.bin_num.unique())-len(t_transition[t_transition>0])
+
+        No_MT_df = evol_type_3.loc[~(evol_type_3.bin_num.isin(post_RLO1.bin_num))]
+
+        No_MT_frac = len(No_MT_df.bin_num.unique())/len(BPP.bin_num.unique())
+        No_MT = len(No_MT_df.bin_num.unique())
+
+        print(f'No. of SMT -> CE: {SMT_CE}, {t_transition_frac*100:.3f}%')
+        print(f'No. of   only CE: {CE1_only}, {(CE1_frac-t_transition_frac)*100:.3f}%')
+        print(f'No. of  only SMT: {RLO1_only}, {(RLO1_frac-t_transition_frac)*100:.3f}%')
+        print(f'No. of     no MT: {No_MT}, {No_MT_frac*100:.3f}%')
+        print('')
 
     ########################
     # kstar_1 at RLO1
     ########################
+    
+    if kstar_at_rlo1:
+        for kstar_1_val in RLO1.kstar_1.unique():
+            num_kstar_1 = RLO1.loc[(RLO1.kstar_1==kstar_1_val)]
+            frac_kstar_1 = len(num_kstar_1)/len(RLO1)
 
-    for kstar_1_val in RLO1.kstar_1.unique():
-        num_kstar_1 = RLO1.loc[(RLO1.kstar_1==kstar_1_val)]
-        frac_kstar_1 = len(num_kstar_1)/len(RLO1)
-
-        print(f'No. of kstar_1 = {kstar_1_val} at RLO1: {len(num_kstar_1)}, {frac_kstar_1:.4f}%')
-    print('')
+            print(f'No. of kstar_1 = {kstar_1_val} at RLO1: {len(num_kstar_1)}, {frac_kstar_1:.4f}%')
+        print('')
     
     ########################
     # ecc
     ########################
 
-    print(f'ecc   at SN: {SN1.ecc.mean():.2f}')
-    print(f'ecc post-SN: {post_SN1.ecc.mean():.2f}')
-    print('')
+    if ecc:
+        print(f'ecc   at SN: {SN1.ecc.mean():.2f}')
+        print(f'ecc post-SN: {post_SN1.ecc.mean():.2f}')
+        print('')
 
     ########################
     # porb
     ########################
 
-    print(f'orbital period   at SN: {SN1.porb.mean():.2f} days')
-    print(f'orbital period post-SN: {post_SN1.porb.mean():.2f} days')
-    print('')
+    if porb:
+        print(f'orbital period   at SN: {SN1.porb.mean():.2f} days')
+        print(f'orbital period post-SN: {post_SN1.porb.mean():.2f} days')
+        print('')
 
     ########################
     # SN mass loss
     ########################
 
-    dm1 = SN1.mass_1 - post_SN1.mass_1
+    if SN_mass_loss:
+        dm1 = SN1.mass_1 - post_SN1.mass_1
 
-    print(f'Mass loss due to SN: {dm1.mean():.2f} M')
-    print('')
+        print(f'Mass loss due to SN: {dm1.mean():.2f} M')
+        print('')
 
     ########################
     # natal kick
     ########################
 
-    avg_kick = kick_df['natal_kick'].values.mean()
+    if Avg_Kick:
+        avg_kick = kick_df['natal_kick'].values.mean()
 
-    print(f'Natal kick: {avg_kick:.2f} km/s')
-    print('')
+        print(f'Natal kick: {avg_kick:.2f} km/s')
+        print('')
 
     ########################
     # Final masses
     ########################
+    
+    if Post_SN_Mass:
+        for post_SN_mass in ['mass_1', 'mass_2']:
 
-    avg_m1 = post_SN1.mass_1.mean()
-    avg_m2 = post_SN1.mass_2.mean()
+            data = post_SN1[post_SN_mass].values
+            mean = data.mean()
 
-    print(f'Post SN1 m1 mass: {avg_m1:.3f} M')
-    print(f'Post SN1 m2 mass: {avg_m2:.3f} M')
-    print('')
+            resamp = stats.bootstrap((data,), np.mean, confidence_level=ci, method='percentile')
+            ci_low, ci_high = resamp.confidence_interval
 
+            print(f'Post SN {post_SN_mass}: {mean:.3f} + {ci_high - mean:.3f} / - {mean - ci_low:.3f}')
+            print('')
+        
     ########################
     # semi-latus rectum
     ########################
 
-    slr = post_SN1.sep.mean()*(1 - post_SN1.ecc.mean()**2)
+    if SLR:
+        slr = post_SN1.sep.mean()*(1 - post_SN1.ecc.mean()**2)
 
-    print(f'a(1-e**2): {slr:.3f}')
-    print('')
+        print(f'a(1-e**2): {slr:.3f}')
+        print('')
